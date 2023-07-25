@@ -1,7 +1,7 @@
 const cpu = @import("cpu.zig");
 const ram = @import("ram.zig");
 pub const std = @import("std");
-pub const BusError = error{InvalidMake};
+pub const BusError = error{ InvalidMake, InvalidRead, InvalidWrite };
 
 // The bus holds the whole system. It is nothing more than a series of components connected.
 pub const Bus = struct {
@@ -23,7 +23,7 @@ pub const Bus = struct {
     }
 
     // Read data at address.
-    pub fn read(this: *Bus, addr: u16) BusError!u8 {
+    pub fn read(this: *Bus, addr: u16) u8 {
         return this.ram.mem[addr];
     }
 };

@@ -5,24 +5,37 @@ pub const ram = @import("ram.zig");
 
 const PC_START = 0;
 
+fn shiftRight(n: u8) u8 {
+    return (1 << n);
+}
+
+// CPU Flags
 const CPU_F = enum(u8) {
-    C = (1 << 0),
-    Z = (1 << 1),
-    I = (1 << 2),
-    D = (1 << 3),
-    V = (1 << 4),
-    N = (1 << 5),
-    B = (1 << 6),
-    U = (1 << 7),
+    C = shiftRight(0), // Carry flag.
+    Z = shiftRight(1), // Zero flag.
+    I = shiftRight(2), // Interrupt Disable flag.
+    D = shiftRight(3), // Decimal flag. (Unused)
+    V = shiftRight(4), // Overflow flag.
+    N = shiftRight(5), // Negative flag.
+    B = shiftRight(6), // Bit branches.
+    U = shiftRight(7), // Unused/Unknown flag.
 };
 
-// 6502 emulation.
+// 6502 chip.
 pub const Cpu = struct {
-    PC: u32,
-    bus: ?*bus.Bus,
+    a: u8 = 0, // Accumulator register
+    y: u8 = 0, // Index register Y
+    x: u8 = 0, // Index register X
+
+    pc: u16 = PC_START, // Program counter
+    sp: u8 = 0, // Stack pointer
+
+    status: u8 = 0, // Processor Status
+
+    bus: ?*bus.Bus = null, // The bus the cpu is connected to
 
     pub fn make() Cpu {
-        return Cpu{ .PC = PC_START, .bus = null };
+        return Cpu{};
     }
 
     pub fn connectBus(this: *Cpu, _bus: ?*bus.Bus) CpuError!void {

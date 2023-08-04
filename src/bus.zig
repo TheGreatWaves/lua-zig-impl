@@ -33,3 +33,12 @@ test "CPU failed to connect to bus." {
     try bus.cpu.connectBus(&bus);
     try std.testing.expect(&bus == bus.cpu.bus.?);
 }
+
+test "CPU writing and reading works properly" {
+    var system = Bus.make() catch unreachable;
+    system.write(0x00FF, 0xfe);
+    try std.testing.expect(system.read(0x00FF) == 0xfe);
+
+    system.write(0x00FF, 0xcd);
+    try std.testing.expect(system.read(0x00FF) == 0xcd);
+}

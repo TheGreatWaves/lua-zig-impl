@@ -1,4 +1,5 @@
 const bus = @import("bus.zig");
+const cpu = @import("cpu.zig");
 
 pub fn main() !void {
     var system = bus.Bus.make() catch unreachable;

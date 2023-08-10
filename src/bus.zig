@@ -5,6 +5,7 @@ pub const BusError = error{ InvalidMake, InvalidRead, InvalidWrite };
 
 // The bus holds the whole system. It is nothing more than a series of components connected.
 pub const Bus = struct {
+    const Self = @This();
 
     // Devices on the bus.
     cpu: cpu.Cpu,
@@ -13,8 +14,12 @@ pub const Bus = struct {
     // Create the bus and initialize all the components on it.
     pub fn make() BusError!Bus {
         var bus = Bus{ .cpu = cpu.Cpu.make(), .ram = ram.Ram.make() };
-        bus.cpu.connectBus(&bus) catch return BusError.InvalidMake;
         return bus;
+    }
+
+    pub fn connect_components(this: *Self) void {
+        // Connect CPU
+        this.cpu.connectBus(this) catch unreachable;
     }
 
     // Write data to the address.

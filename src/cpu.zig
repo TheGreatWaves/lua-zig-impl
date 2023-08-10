@@ -56,8 +56,8 @@ pub const Cpu = struct {
     }
 
     pub fn connectBus(this: *Cpu, _bus: ?*bus.Bus) CpuError!void {
-        if (_bus) |b| {
-            this.bus = b;
+        if (_bus != null) {
+            this.bus = _bus;
         } else {
             return CpuError.Unknown;
         }
@@ -74,8 +74,8 @@ pub const Cpu = struct {
 
     // Read data at address. (byte)
     pub fn read(this: *Cpu, addr: u16) CpuError!u8 {
-        if (this.bus) |b| {
-            return b.read(addr);
+        if (this.bus != null) {
+            return this.bus.?.read(addr);
         } else {
             return CpuError.InvalidRead;
         }
@@ -88,9 +88,11 @@ pub const Cpu = struct {
 
             // Now reset the number of cycles to the number required by the instruction.
             this.cycles = LOOK_UP[this.opcode].cycles;
-            var additional_cycles = LOOK_UP[this.opcode].operation(this);
 
-            this.cycles += additional_cycles;
+            var additional_cycles_1 = LOOK_UP[this.opcode].operation(this);
+            var additional_cycles_2 = LOOK_UP[this.opcode].addr_mode(this);
+
+            this.cycles += (additional_cycles_1 & additional_cycles_2);
         }
 
         this.cycles -= 1;
@@ -126,8 +128,9 @@ pub const Cpu = struct {
     // byte of the instruction specifies the 8 low order bits, the third
     // byte specifies the 8 high order bits.
     pub fn absolute(this: *Cpu) u8 {
-        var lo = this.read(this.pc);
-        var hi = this.read(this.pc + 1);
+        _ = this.bus.?.read(0x0000);
+        var lo: u16 = this.read(this.pc) catch unreachable;
+        var hi: u16 = this.read(this.pc + 1) catch unreachable;
         this.pc += 2;
         this.addr_abs = (hi << 8) | lo;
         return 0;
@@ -430,4 +433,30 @@ test "CPU can read, but hub not connected." {
 test "CPU can write, but hub not connected." {
     var _bus = bus.Bus{ .cpu = Cpu.make(), .ram = ram.Ram.make() };
     try std.testing.expectError(CpuError.InvalidWrite, _bus.cpu.write(0xFFFF, 0xab));
+}
+
+test "CPU: Addresing mode - Immediate" {
+    var _bus = bus.Bus.make() catch unreachable;
+    _ = Cpu.immediate(&_bus.cpu);
+    try std.testing.expect(_bus.cpu.addr_abs == 0);
+    _ = Cpu.immediate(&_bus.cpu);
+    try std.testing.expect(_bus.cpu.addr_abs == 1);
+    _bus.cpu.pc = 0xfe;
+    _ = Cpu.immediate(&_bus.cpu);
+    try std.testing.expect(_bus.cpu.addr_abs == 0xfe);
+}
+
+test "CPU: Addresing mode - Absolute" {
+    var _bus = bus.Bus.make() catch unreachable;
+    _bus.connect_components();
+
+    // Write the address in.
+    _bus.write(0x0000, 0x10);
+    _bus.write(0x0001, 0x30);
+
+    // Write the data at the address in.
+    _bus.write(0x3010, 34);
+
+    _ = _bus.cpu.absolute();
+    try std.testing.expect(_bus.read(_bus.cpu.addr_abs) == 34);
 }

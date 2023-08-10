@@ -127,9 +127,8 @@ pub const Cpu = struct {
     // byte specifies the 8 high order bits.
     pub fn absolute_address_mode(this: *Cpu) u8 {
         var lo = this.read(this.pc);
-        this.pc += 1;
-        var hi = this.read(this.pc);
-        this.pc += 1;
+        var hi = this.read(this.pc + 1);
+        this.pc += 2;
         this.addr_abs = (hi << 8) | lo;
         return 0;
     }
@@ -139,9 +138,8 @@ pub const Cpu = struct {
     // requires the register content of X to be added as an offset.
     pub fn absolute_x_address_mode(this: *Cpu) u8 {
         var lo = this.read(this.pc);
-        this.pc += 1;
-        var hi = this.read(this.pc);
-        this.pc += 1;
+        var hi = this.read(this.pc + 1);
+        this.pc += 2;
         var x_offset = this.x;
         this.addr_abs = ((hi << 8) | lo) + x_offset;
 
@@ -160,9 +158,8 @@ pub const Cpu = struct {
     // requires the register content of y to be added as an offset.
     pub fn absolute_y_address_mode(this: *Cpu) u8 {
         var lo = this.read(this.pc);
-        this.pc += 1;
-        var hi = this.read(this.pc);
-        this.pc += 1;
+        var hi = this.read(this.pc + 1);
+        this.pc += 2;
         var y_offset = this.y;
         this.addr_abs = ((hi << 8) | lo) + y_offset;
 
@@ -211,6 +208,26 @@ pub const Cpu = struct {
     pub fn zero_page_y_address_mode(this: *Cpu) u8 {
         this.addr_rel = (read(this.pc) + this.y) & 0x00FF;
         this.pc += 1;
+        return 0;
+    }
+
+    // Address Mode - Indirect Addressing
+    // Uses the content of the address as the effective address.
+    pub fn indirect_addressing(this: *Cpu) u8 {
+
+        // First we have to construct the address we want to read from.
+        var content_lo_addr = this.read(this.pc);
+        var content_hi_addr = this.read(this.pc + 1);
+        this.pc += 2;
+
+        var content_addr = (content_hi_addr << 8) | content_lo_addr;
+
+        // Read the first and second byte.
+        var effective_lo = this.read(content_addr);
+        var effective_hi = this.read(content_addr + 1);
+
+        this.addr_abs = (effective_hi << 8) | effective_lo;
+
         return 0;
     }
 

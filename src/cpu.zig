@@ -107,14 +107,14 @@ pub const Cpu = struct {
     // Address Mode - Implied
     // There is no additional data required. The accumulator needs to be fetched
     // in order to account for instructions which will implicitly require it.
-    pub fn implied_address_mode(this: *Cpu) u8 {
+    pub fn implied(this: *Cpu) u8 {
         this.fetched = this.a;
         return 0;
     }
 
     // Address Mode - Immediate
     // The required data is taken from the byte following the opcode.
-    pub fn immediate_address_mode(this: *Cpu) u8 {
+    pub fn immediate(this: *Cpu) u8 {
         this.addr_abs = this.pc;
         this.pc += 1;
         return 0;
@@ -125,7 +125,7 @@ pub const Cpu = struct {
     // combining the second and third byte of the instruction. The second
     // byte of the instruction specifies the 8 low order bits, the third
     // byte specifies the 8 high order bits.
-    pub fn absolute_address_mode(this: *Cpu) u8 {
+    pub fn absolute(this: *Cpu) u8 {
         var lo = this.read(this.pc);
         var hi = this.read(this.pc + 1);
         this.pc += 2;
@@ -136,7 +136,7 @@ pub const Cpu = struct {
     // Address Mode - Zero page X
     // Similar to absolute address mode, the only difference is that this
     // requires the register content of X to be added as an offset.
-    pub fn absolute_x_address_mode(this: *Cpu) u8 {
+    pub fn absolute_x(this: *Cpu) u8 {
         var lo = this.read(this.pc);
         var hi = this.read(this.pc + 1);
         this.pc += 2;
@@ -148,15 +148,14 @@ pub const Cpu = struct {
         // needs to be incremented and this takes an additional cycle.
         if ((this.addr_abs & 0xFF00) != (hi << 8)) {
             return 1;
-        } else {
-            return 0;
         }
+        return 0;
     }
 
     // Address Mode - Zero page Y
     // Similar to absolute address mode, the only difference is that this
     // requires the register content of y to be added as an offset.
-    pub fn absolute_y_address_mode(this: *Cpu) u8 {
+    pub fn absolute_y(this: *Cpu) u8 {
         var lo = this.read(this.pc);
         var hi = this.read(this.pc + 1);
         this.pc += 2;
@@ -168,13 +167,12 @@ pub const Cpu = struct {
         // needs to be incremented and this takes an additional cycle.
         if ((this.addr_abs & 0xFF00) != (hi << 8)) {
             return 1;
-        } else {
-            return 0;
         }
+        return 0;
     }
 
     // Address Mode - Accumulator
-    pub fn accumulator_address_mode(this: *Cpu) u8 {
+    pub fn accumulator(this: *Cpu) u8 {
         this.fetch = this.a;
         return 0;
     }
@@ -184,7 +182,7 @@ pub const Cpu = struct {
     // byte and grab the low 8 order bits. This is very similar to the absolute
     // address mode, but since it only requires one less byte to fetch this
     // takes one cycle less to execute.
-    pub fn zero_page_address_mode(this: *Cpu) u8 {
+    pub fn zero_page(this: *Cpu) u8 {
         this.addr_rel = read(this.pc) & 0x00FF;
         this.pc += 1;
         return 0;
@@ -196,7 +194,7 @@ pub const Cpu = struct {
     // Since this is zero page, the high order byte will always be 0, even
     // if we were to increment, we would simply wrap around. This means that
     // we will never have to worry about crossing any page boundary.
-    pub fn zero_page_x_address_mode(this: *Cpu) u8 {
+    pub fn zero_page_x(this: *Cpu) u8 {
         this.addr_rel = (read(this.pc) + this.x) & 0x00FF;
         this.pc += 1;
         return 0;
@@ -205,7 +203,7 @@ pub const Cpu = struct {
     // Address Mode - Zero page Y
     // Equivalent to zero page X, but uses Y register instead. Notably, this
     // is less used than the X alternative.
-    pub fn zero_page_y_address_mode(this: *Cpu) u8 {
+    pub fn zero_page_y(this: *Cpu) u8 {
         this.addr_rel = (read(this.pc) + this.y) & 0x00FF;
         this.pc += 1;
         return 0;
@@ -213,7 +211,7 @@ pub const Cpu = struct {
 
     // Address Mode - Indirect Addressing
     // Uses the content of the address as the effective address.
-    pub fn indirect_addressing(this: *Cpu) u8 {
+    pub fn indirect(this: *Cpu) u8 {
 
         // First we have to construct the address we want to read from.
         var content_lo_addr = this.read(this.pc);
@@ -227,6 +225,59 @@ pub const Cpu = struct {
         var effective_hi = this.read(content_addr + 1);
 
         this.addr_abs = (effective_hi << 8) | effective_lo;
+
+        return 0;
+    }
+
+    // Address Mode - Indirect X
+    // We read from page 0x00, we get the low bits from the
+    // second byte and apply the X offset.
+    pub fn indirect_x(this: *Cpu) u8 {
+        var content_addr = this.read(this.pc) + this.x;
+        this.pc += 1;
+
+        // Read the first and second byte.
+        var effective_lo = this.read((content_addr) & 0x00FF);
+        var effective_hi = this.read((content_addr + 1) & 0x00FF);
+
+        this.addr_abs = (effective_hi << 8) | effective_lo;
+
+        return 0;
+    }
+
+    // Address Mode - Indirect Y
+    // First, read from page 0x00, the low order bits are supplied by the second byte.
+    // Then we form an address from the two bytes read, then apply a Y offset.
+    // The content of the byte at the result is what we return.
+    pub fn indirect_y(this: *Cpu) u8 {
+        var t = this.read(this.pc);
+        this.pc += 1;
+
+        var effective_lo = this.read(t & 0xFF);
+        var effective_hi = this.read((t + 1) & 0xFF);
+        this.addr_abs = ((effective_hi << 8) | effective_lo) + this.y;
+
+        // Stepped out of page.
+        // Crossing the page boundary means that the high order byte
+        // needs to be incremented and this takes an additional cycle.
+        if ((this.addr_abs & 0xFF00) != (effective_hi << 8)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    // Address Mode - Relative
+    // This address mode is exclusive to branch instructions.
+    // The range of our offset is between [-128, ..., +127].
+    pub fn relative(this: *Cpu) u8 {
+        this.addr_rel = this.read(this.pc);
+        this.pc += 1;
+
+        // Sign extension
+        if (this.addr_rel & 0x80) {
+            this.addr_rel |= 0xFF00;
+        }
 
         return 0;
     }

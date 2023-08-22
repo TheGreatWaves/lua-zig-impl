@@ -48,11 +48,14 @@ pub const Cpu = struct {
 
     // The data to be fetched can only be retrieved from two sources. It can either come from
     // some memory address, or it can be retrieved directly from the instruction itself.
-    pub fn fetch(this: *Cpu) void {
-        // TODO! Check the current instruction's addressing mode. If it isn't `implied` then we have to read.
+    pub fn fetch(this: *Cpu) u8 {
+        // If the current address mode it isn't `implied` then we have to read.
+        if (LOOK_UP[this.opcode].addr_mode != this.implied) {
+            this.fetched = this.read(this.addr_abs);
+        }
         // Otherwise we can just return what has already been fetched, which should've been handled by the
         // `implied_address_mode` function.
-        _ = this;
+        return this.fetched;
     }
 
     pub fn connectBus(this: *Cpu, _bus: ?*bus.Bus) CpuError!void {
@@ -422,7 +425,7 @@ pub const Cpu = struct {
 };
 
 const LOOK_UP = [_]instr.Instruction{
-    instr.Instruction{ .name = "BRK", .operation = Cpu.BRK, .cycles = 7 },
+    instr.Instruction{ .name = "BRK", .operation = Cpu.BRK, .addr_mode = Cpu.implied, .cycles = 7 },
 };
 
 test "CPU can read, but hub not connected." {
